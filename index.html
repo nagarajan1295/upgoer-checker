@@ -48,7 +48,16 @@
   #typed button { font:inherit; font-size:15px; background:none; border:0; color:var(--soft); cursor:pointer; }
   .wrap { position:relative; }
   #panel { display:none; position:absolute; right:0; top:30px; z-index:5; width:330px; background:var(--panel); border:1px solid var(--rule); border-radius:12px; box-shadow:var(--shadow); padding:16px 18px; }
-  #panel.open { display:block; }
+  #panel.open { display:block; max-height:84vh; overflow-y:auto; }
+  #panel .pb { text-decoration:none; border:1px solid var(--rule); border-radius:8px; padding:7px 12px; color:var(--ink); width:100%; }
+  #diag { margin-top:10px; font-size:13px; line-height:1.4; }
+  #diag .sum { font-weight:600; margin-bottom:8px; font-size:14px; }
+  #diag .it { padding:7px 0; border-top:1px solid var(--rule); display:flex; gap:9px; }
+  #diag .dot { flex:none; width:9px; height:9px; border-radius:50%; margin-top:5px; background:var(--soft); }
+  #diag .ok .dot { background:#1a9d55; } #diag .warn .dot { background:#e0a400; } #diag .fail .dot { background:var(--red); }
+  #diag .nm { font-weight:600; } #diag .fx { color:var(--soft); margin-top:2px; }
+  #diag .meter { height:6px; background:var(--rule); border-radius:3px; margin-top:5px; overflow:hidden; }
+  #diag .meter i { display:block; height:100%; width:0; background:#1a9d55; }
   #panel h3 { margin:0 0 6px; font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:var(--soft); font-weight:600; }
   #panel .grp { margin-bottom:16px; }
   #panel .grp:last-child { margin-bottom:0; }
@@ -76,6 +85,7 @@
     <div class="grp"><h3>Alert tone</h3>
       <div class="row"><select id="tone"><option value="knock">Soft knock</option><option value="chime">Chime</option><option value="pop">Pop</option><option value="buzz">Low buzzer</option><option value="off">No sound</option></select><button id="testTone">Test</button></div>
       <div style="margin-top:8px"><input type="range" id="vol" min="0" max="100" value="70"></div></div>
+    <div class="grp"><h3>Troubleshooting</h3><button class="pb" id="diagBtn">Check microphone and speech service</button><div id="diag"></div></div>
     <div class="grp"><h3>Screen flash</h3><div class="seg" data-key="flash"><button data-v="on">On</button><button data-v="off">Off</button></div></div>
   </div></span>
 </div>
@@ -212,9 +222,133 @@ function scanForBeeps(i, text){
   }
 }
 
+
+// ---- diagnostics ----
+async function detectBrowser(){
+  const ua = navigator.userAgent;
+  try { if (navigator.brave && await navigator.brave.isBrave()) return "Brave"; } catch(e){}
+  if (/Edg\//.test(ua)) return "Edge";
+  if (/OPR\//.test(ua)) return "Opera";
+  if (/Firefox\//.test(ua)) return "Firefox";
+  if (/Chrome\//.test(ua)) return "Chrome";
+  if (/Safari\//.test(ua)) return "Safari";
+  return "this browser";
+}
+function reach(url, ms){
+  return new Promise(res => {
+    const c = new AbortController(), t = setTimeout(()=>{ c.abort(); res(false); }, ms);
+    fetch(url, { mode:"no-cors", cache:"no-store", signal:c.signal }).then(()=>{ clearTimeout(t); res(true); }, ()=>{ clearTimeout(t); res(false); });
+  });
+}
+let diagRunning = false;
+async function runDiag(){
+  if (diagRunning) return; diagRunning = true;
+  const box = $("diag"); box.innerHTML = "<div class='sum'>Checking… speak normally for a couple of seconds.</div>";
+  const out = [];
+  const add = (st, name, detail, fix) => out.push({st, name, detail, fix});
+  const br = await detectBrowser();
+
+  // 1. browser support
+  if (!SR) {
+    add("fail", "Speech recognition in " + br, "This browser has no built-in speech recognition.",
+        br==="Firefox"||br==="Safari" ? "Open this page in Google Chrome or Microsoft Edge." : "Update the browser, or open this page in Google Chrome or Microsoft Edge.");
+  } else if (br === "Brave") {
+    add("fail", "Browser: Brave", "Brave blocks the speech service on purpose, so you will always get a network error.", "Open this page in Google Chrome or Microsoft Edge.");
+  } else if (br === "Opera") {
+    add("warn", "Browser: Opera", "Opera often cannot reach the speech service.", "If it fails, use Google Chrome or Microsoft Edge.");
+  } else add("ok", "Browser: " + br, "Speech recognition is available.");
+
+  // 2. secure page
+  if (!window.isSecureContext) add("fail", "Secure page", "This page is not served over https, so the microphone will not work or will keep asking.", "Use the https link: https://nagarajan1295.github.io/upgoer-checker/");
+  else add("ok", "Secure page", location.protocol === "file:" ? "Local file" : location.host);
+  if (location.protocol === "file:") out[out.length-1] = {st:"warn", name:"Secure page", detail:"Opened from a file. The browser will ask for the microphone again and again.", fix:"Open the https link instead: https://nagarajan1295.github.io/upgoer-checker/"};
+
+  // 3. internet + speech servers
+  if (!navigator.onLine) add("fail", "Internet", "The computer says it is offline.", "Connect to wifi or a cable. If there is no internet, use the offline option below (Chrome 139 or newer) or the typing box.");
+  else {
+    const isEdge = br === "Edge";
+    const host = isEdge ? "https://speech.platform.bing.com/" : "https://www.google.com/speech-api/v2/recognize";
+    const [net, svc] = await Promise.all([reach("https://www.gstatic.com/generate_204", 5000), reach(host, 6000)]);
+    if (!net && !svc) add("fail", "Internet", "No response from the internet.", "Check wifi, cable, or VPN. Try opening any website in another tab.");
+    else add("ok", "Internet", "Connected.");
+    if (svc) add("ok", "Speech service (" + (isEdge ? "Microsoft" : "Google") + ")", "Reachable.");
+    else if (net) add("fail", "Speech service (" + (isEdge ? "Microsoft" : "Google") + ")", "The internet works, but this speech server is blocked or not answering. This is the usual cause of the “network” error: a firewall, school or work network, VPN, or ad blocker.",
+        "Try: switch off the VPN, join a phone hotspot, or pause ad-blocker or privacy extensions for this site. Or use the offline option below.");
+  }
+
+  // 4. on-device speech
+  if (SR && SR.available) {
+    try {
+      const st = await SR.available({ langs:["en-US"], processLocally:true });
+      if (st === "available") add("ok", "Offline speech (on this computer)", "Installed. It works without internet.");
+      else if (st === "downloadable" || st === "downloading") add("warn", "Offline speech (on this computer)", "Not installed yet, but Chrome can download it (one time, needs internet).", "Press Start listening while online once; the download starts automatically.");
+      else add("warn", "Offline speech (on this computer)", "Not available on this device.", "Needs Chrome 139 or newer on Windows or Mac.");
+    } catch(e) { add("warn", "Offline speech (on this computer)", "Could not check."); }
+  } else if (SR) add("warn", "Offline speech (on this computer)", "Your browser version is too old for it.", "Update Chrome to version 139 or newer to get an offline option.");
+
+  // 5. microphone permission
+  let perm = "unknown";
+  try { perm = (await navigator.permissions.query({ name:"microphone" })).state; } catch(e){}
+  if (perm === "denied") add("fail", "Microphone permission", "Blocked for this site.", "Click the padlock (or tune) icon left of the address bar → Microphone → Allow, then reload the page. Also check Windows Settings → Privacy → Microphone → allow desktop apps / browsers.");
+  else if (perm === "granted") add("ok", "Microphone permission", "Allowed for this site.");
+  else add("warn", "Microphone permission", perm === "prompt" ? "Not asked yet." : "Unknown.", "Click Allow if the browser asks.");
+
+  // 6. devices + live level
+  let micMsg = null;
+  try {
+    const devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "audioinput");
+    if (!devs.length) add("fail", "Microphone device", "No microphone found.", "Plug in or enable a microphone. Windows: Settings → System → Sound → Input.");
+    else {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio:true });
+      const label = (stream.getAudioTracks()[0] || {}).label || "default microphone";
+      const a = new (window.AudioContext||window.webkitAudioContext)(); const an = a.createAnalyser(); an.fftSize = 1024;
+      a.createMediaStreamSource(stream).connect(an);
+      const buf = new Uint8Array(an.fftSize); let peak = 0;
+      const t0 = performance.now();
+      const item = document.createElement("div"); item.className = "it warn"; item.innerHTML = "<span class='dot'></span><div><div class='nm'>Microphone level</div><div class='meter'><i></i></div></div>";
+      box.append(item);
+      await new Promise(res => { (function tick(){
+        an.getByteTimeDomainData(buf); let m = 0; for (const v of buf) m = Math.max(m, Math.abs(v-128)); peak = Math.max(peak, m);
+        item.querySelector("i").style.width = Math.min(100, m*2.2) + "%";
+        if (performance.now() - t0 < 2500) requestAnimationFrame(tick); else res(); })(); });
+      item.remove(); stream.getTracks().forEach(tr => tr.stop()); a.close();
+      if (peak < 3) add("fail", "Microphone sound", "Connected (“" + label + "”) but heard nothing.", "Say something while this runs. If you did: the mic is muted, wrong input is selected, or Windows has it turned off. Windows: Settings → System → Sound → Input → pick the right mic and check the bar moves.");
+      else if (peak < 12) add("warn", "Microphone sound", "Very quiet (“" + label + "”).", "Move closer or raise the input volume in Windows Sound settings.");
+      else add("ok", "Microphone sound", "Hearing you clearly (“" + label + "”).");
+    }
+  } catch(e) {
+    const n = e && e.name;
+    if (n === "NotAllowedError") add("fail", "Microphone access", "The browser or Windows refused access.", "Allow the microphone for this site (padlock icon), and in Windows Settings → Privacy → Microphone.");
+    else if (n === "NotFoundError") add("fail", "Microphone device", "No microphone found.", "Plug in a microphone.");
+    else if (n === "NotReadableError") add("fail", "Microphone access", "Another app (Teams, Zoom, etc.) is using the microphone.", "Close that app, then try again.");
+    else add("fail", "Microphone access", "Error: " + (n || e), "Reload the page and try again.");
+  }
+
+  // render
+  const bad = out.filter(o => o.st === "fail").length, warn = out.filter(o => o.st === "warn").length;
+  box.innerHTML = "";
+  const sum = document.createElement("div"); sum.className = "sum";
+  sum.textContent = bad ? bad + " problem" + (bad>1?"s":"") + " found" : warn ? "Works, with " + warn + " note" + (warn>1?"s":"") : "Everything looks good";
+  box.append(sum);
+  out.forEach(o => {
+    const d = document.createElement("div"); d.className = "it " + o.st;
+    const dot = document.createElement("span"); dot.className = "dot";
+    const body = document.createElement("div");
+    const nm = document.createElement("div"); nm.className = "nm"; nm.textContent = o.name;
+    const dt = document.createElement("div"); dt.textContent = o.detail;
+    body.append(nm, dt);
+    if (o.fix) { const fx = document.createElement("div"); fx.className = "fx"; fx.textContent = "Fix: " + o.fix; body.append(fx); }
+    d.append(dot, body); box.append(d);
+  });
+  diagRunning = false;
+  return out;
+}
+$("diagBtn").onclick = runDiag;
+function openDiag(){ $("panel").classList.add("open"); runDiag(); }
+
 // ---- speech ----
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-let rec, listening=false, netFails=0, useLocal=false;
+let rec, listening=false, netFails=0, useLocal=false, triedLocal=false, pending=null;
 
 async function prepareLocal(){
   // Chrome 139+ can recognise speech on this computer, with no internet. Try that first.
@@ -248,20 +382,27 @@ function startRec(){
     interim = live; render();
   };
   rec.onerror = (e) => {
+    const m = $("msg");
     if (e.error === "not-allowed" || e.error === "service-not-allowed") {
-      $("msg").textContent = "The microphone is blocked. Allow it from the icon left of the address bar, then press Start again.";
-      stopListening();
+      m.textContent = "Microphone or speech access was refused. Opening the checker…";
+      stopListening(); openDiag();
+    } else if (e.error === "audio-capture") {
+      m.textContent = "No working microphone found. Opening the checker…";
+      stopListening(); openDiag();
     } else if (e.error === "network") {
       netFails++;
-      if (useLocal) { useLocal = false; }
-      $("msg").textContent = netFails < 4
-        ? "Can’t reach the speech service. Retrying…"
-        : "Still can’t reach the speech service. Check the internet or VPN, or try Microsoft Edge.";
+      if (useLocal) { useLocal = false; triedLocal = true; }
+      else if (!triedLocal && SR.install) { triedLocal = true; m.textContent = "Speech service unreachable, trying the offline speech pack…"; pending = prepareLocal(); }
+      if (netFails === 1) m.textContent = m.textContent || "Can’t reach the speech service. Retrying…";
+      if (netFails === 3) { m.textContent = "Still can’t reach the speech service. Running the checker to find out why…"; openDiag(); }
+      if (netFails === 8) { m.textContent = "Speech recognition isn’t working here. Use Settings → Troubleshooting, or type into the box below."; }
+    } else if (e.error === "language-not-supported") {
+      m.textContent = "English speech isn’t available in this browser.";
     } else if (e.error !== "no-speech" && e.error !== "aborted") {
-      $("msg").textContent = "Speech error: " + e.error;
+      m.textContent = "Speech error: " + e.error + ". Settings → Troubleshooting can help.";
     }
   };
-  rec.onend = () => { if (listening) setTimeout(()=>{ if (listening) { try { startRec(); } catch(e){} } }, netFails ? Math.min(500*netFails, 3000) : 100); };
+  rec.onend = () => { if (listening) setTimeout(()=>{ Promise.resolve(pending).then(()=>{ pending=null; if (listening) { try { startRec(); } catch(e){} } }); }, netFails ? Math.min(500*netFails, 3000) : 100); };
   try { rec.start(); } catch(e){}
 }
 
