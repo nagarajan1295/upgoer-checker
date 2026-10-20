@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Up-Goer check</title>
+<style>
+  :root { --paper:#ffffff; --ink:#111418; --soft:#6a717c; --rule:#e6e8ec; --red:#d92d20; --mark:rgba(217,45,32,.12); --amber:#b54708; --hit:#fde4e1; --panel:#ffffff; --shadow:0 8px 28px rgba(0,0,0,.12); }
+  :root[data-theme="dark"] { --paper:#0e1115; --ink:#eceff3; --soft:#959dab; --rule:#262b33; --red:#ff6b5e; --mark:rgba(255,107,94,.22); --amber:#f5a524; --hit:#3a1613; --panel:#171b21; --shadow:0 8px 28px rgba(0,0,0,.5); color-scheme:dark; }
+  * { box-sizing:border-box; }
+  html,body { height:100%; margin:0; }
+  body { background:var(--paper); color:var(--ink); font-family:"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif; display:flex; flex-direction:column; }
+  body.hit { animation: hit .5s ease-out; }
+  @keyframes hit { 0% { background:var(--hit); } 100% { background:var(--paper); } }
+
+  .bar { display:flex; align-items:baseline; gap:22px; padding:16px 36px; border-bottom:1px solid var(--rule); font-size:15px; }
+  .bar .title { font-weight:700;  font-size:19px; margin-right:auto; }
+  .bar label { color:var(--soft); cursor:pointer; user-select:none; }
+  .bar input[type=checkbox] { accent-color:var(--ink); margin-right:6px; }
+  .bar button { font:inherit; background:none; border:0; color:var(--soft); cursor:pointer; padding:0; text-decoration:underline; text-underline-offset:3px; }
+  .bar button:hover { color:var(--ink); }
+
+  main { flex:1; display:flex; flex-direction:column; justify-content:center; padding:0 36px; min-height:0; }
+  #status {  font-size:clamp(26px,3.6vw,46px); color:var(--soft); line-height:1.2; }
+  #status.live { color:var(--ink); }
+  #status { font-weight:600; letter-spacing:-.02em; } #status.flag { color:var(--red); font-weight:800; font-size:clamp(64px,13vw,190px); line-height:1; letter-spacing:-.01em; }
+  #status .note { display:block; font-weight:400;  font-size:clamp(16px,1.8vw,22px); color:var(--soft); margin-top:14px; letter-spacing:0; }
+
+  #go { margin-top:26px; align-self:flex-start; font:inherit; font-size:17px; padding:11px 26px; border:1.5px solid var(--ink); background:var(--ink); color:var(--paper); border-radius:8px; font-weight:600; cursor:pointer; }
+  #go.on { background:none; color:var(--ink); }
+  #msg { color:var(--amber); font-size:15px; margin-top:14px; min-height:20px; max-width:720px; }
+
+  footer { border-top:1px solid var(--rule); padding:16px 36px 20px; }
+  #fixes { font-size:15px; color:var(--soft); margin-bottom:8px; min-height:22px; }
+  #fixes b { color:var(--red); font-weight:600; }
+  #transcript { font-weight:500; height:24vh; overflow-y:auto;  font-size:clamp(22px,2.5vw,34px); line-height:1.55; }
+  .bad { background:var(--mark); color:var(--red); font-weight:600; border-radius:3px; padding:0 3px; }
+  body[data-hl="underline"] .bad { background:none; text-decoration:underline wavy var(--red); text-decoration-thickness:2px; text-underline-offset:6px; }
+  body[data-hl="box"] .bad { background:var(--red); color:var(--paper); border-radius:5px; padding:0 7px; }
+  body[data-hl="color"] .bad { background:none; }
+  .form { border-bottom:1px dotted var(--amber); }
+  .interim { color:var(--soft); }
+  .interim.bad { color:var(--red); }
+  body[data-hl="box"] .interim.bad { color:var(--paper); opacity:.8; }
+  #typed { margin-top:10px; display:flex; gap:12px; }
+  #typed input { flex:1; font:inherit; font-size:15px; padding:6px 0; border:0; border-bottom:1px solid var(--rule); background:none; color:var(--ink); outline:none; }
+  #typed input:focus { border-bottom-color:var(--ink); }
+  #typed button { font:inherit; font-size:15px; background:none; border:0; color:var(--soft); cursor:pointer; }
+  .wrap { position:relative; }
+  #panel { display:none; position:absolute; right:0; top:30px; z-index:5; width:330px; background:var(--panel); border:1px solid var(--rule); border-radius:12px; box-shadow:var(--shadow); padding:16px 18px; }
+  #panel.open { display:block; }
+  #panel h3 { margin:0 0 6px; font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:var(--soft); font-weight:600; }
+  #panel .grp { margin-bottom:16px; }
+  #panel .grp:last-child { margin-bottom:0; }
+  .seg { display:flex; border:1px solid var(--rule); border-radius:8px; overflow:hidden; }
+  .seg button { flex:1; text-decoration:none; padding:7px 4px; font-size:14px; color:var(--soft); border-right:1px solid var(--rule); }
+  .seg button:last-child { border-right:0; }
+  .seg button.sel { background:var(--ink); color:var(--paper); }
+  #panel select { flex:1; font:inherit; font-size:14px; padding:6px; background:var(--paper); color:var(--ink); border:1px solid var(--rule); border-radius:8px; }
+  #panel input[type=range] { width:100%; accent-color:var(--ink); }
+  #panel .row { display:flex; gap:10px; align-items:center; }
+  #panel .row button { text-decoration:none; border:1px solid var(--rule); border-radius:8px; padding:6px 12px; white-space:nowrap; color:var(--ink); }
+  #counts { color:var(--soft); font-size:14px; }
+</style>
+</head>
+<body>
+<div class="bar">
+  <span class="title">Up-Goer check</span>
+  <span id="counts"></span>
+  <label><input type="checkbox" id="lenient" checked>Accept endings (-s, -ed, -ing, -ly)</label>
+  <button id="clearBtn">Clear</button>
+  <span class="wrap"><button id="setBtn">Settings</button>
+  <div id="panel">
+    <div class="grp"><h3>Theme</h3><div class="seg" data-key="theme"><button data-v="light">Light</button><button data-v="dark">Dark</button><button data-v="auto">Auto</button></div></div>
+    <div class="grp"><h3>Highlight wrong words</h3><div class="seg" data-key="hl"><button data-v="marker">Marker</button><button data-v="underline">Wavy</button><button data-v="box">Solid</button><button data-v="color">Colour</button></div></div>
+    <div class="grp"><h3>Alert tone</h3>
+      <div class="row"><select id="tone"><option value="knock">Soft knock</option><option value="chime">Chime</option><option value="pop">Pop</option><option value="buzz">Low buzzer</option><option value="off">No sound</option></select><button id="testTone">Test</button></div>
+      <div style="margin-top:8px"><input type="range" id="vol" min="0" max="100" value="70"></div></div>
+    <div class="grp"><h3>Screen flash</h3><div class="seg" data-key="flash"><button data-v="on">On</button><button data-v="off">Off</button></div></div>
+  </div></span>
+</div>
+
+<main>
+  <div id="status">Ready when you are.</div>
+  <button id="go">Start listening</button>
+  <div id="msg"></div>
+</main>
+
+<footer>
+  <div id="fixes"></div>
+  <div id="transcript"></div>
+  <div id="typed"><input id="typedIn" placeholder="Or type a sentence to check it"><button id="typedBtn">Check</button></div>
+</footer>
+
+<script>
+const ALLOWED = new Set(["a", "able", "about", "above", "accept", "across", "act", "actually", "add", "admit", "afraid", "after", "afternoon", "again", "against", "age", "ago", "agree", "ah", "ahead", "air", "all", "allow", "almost", "alone", "along", "already", "alright", "also", "although", "always", "am", "amaze", "an", "and", "anger", "angry", "animal", "annoy", "another", "answer", "any", "anymore", "anyone", "anything", "anyway", "apartment", "apparently", "appear", "approach", "are", "area", "aren't", "arm", "around", "arrive", "as", "ask", "asleep", "ass", "at", "attack", "attempt", "attention", "aunt", "avoid", "away", "baby", "back", "bad", "bag", "ball", "band", "bar", "barely", "bathroom", "be", "beat", "beautiful", "became", "because", "become", "bed", "bedroom", "been", "before", "began", "begin", "behind", "believe", "bell", "beside", "besides", "best", "better", "between", "big", "bit", "bite", "black", "blink", "block", "blonde", "blood", "blue", "blush", "body", "book", "bore", "both", "bother", "bottle", "bottom", "box", "boy", "boyfriend", "brain", "break", "breakfast", "breath", "breathe", "bright", "bring", "broke", "broken", "brother", "brought", "brown", "brush", "build", "burn", "burst", "bus", "business", "busy", "but", "buy", "by", "call", "calm", "came", "can", "can't", "car", "card", "care", "carefully", "carry", "case", "cat", "catch", "caught", "cause", "cell", "chair", "chance", "change", "chase", "check", "cheek", "chest", "child", "children", "chuckle", "city", "class", "clean", "clear", "climb", "close", "clothes", "coffee", "cold", "college", "color", "come", "comment", "complete", "completely", "computer", "concern", "confuse", "consider", "continue", "control", "conversation", "cool", "corner", "couch", "could", "couldn't", "counter", "couple", "course", "cover", "crack", "crazy", "cross", "crowd", "cry", "cup", "cut", "cute", "dad", "damn", "dance", "dark", "date", "daughter", "day", "dead", "deal", "dear", "death", "decide", "deep", "definitely", "desk", "did", "didn't", "die", "different", "dinner", "direction", "disappear", "do", "doctor", "does", "doesn't", "dog", "don't", "done", "door", "doubt", "down", "drag", "draw", "dream", "dress", "drink", "drive", "drop", "drove", "dry", "during", "each", "ear", "early", "easily", "easy", "eat", "edge", "either", "else", "empty", "end", "enjoy", "enough", "enter", "entire", "escape", "especially", "even", "evening", "eventually", "ever", "every", "everyone", "everything", "exactly", "except", "excite", "exclaim", "excuse", "expect", "explain", "expression", "eye", "eyebrow", "face", "fact", "fall", "family", "far", "fast", "father", "fault", "favorite", "fear", "feel", "feet", "fell", "felt", "few", "field", "fight", "figure", "fill", "finally", "find", "fine", "finger", "finish", "fire", "first", "fit", "five", "fix", "flash", "flip", "floor", "fly", "focus", "follow", "food", "foot", "for", "force", "forget", "form", "forward", "found", "four", "free", "friend", "from", "front", "frown", "fuck", "full", "fun", "funny", "further", "game", "gasp", "gave", "gaze", "gently", "get", "giggle", "girl", "girlfriend", "give", "given", "glad", "glance", "glare", "glass", "go", "god", "gone", "gonna", "good", "got", "gotten", "grab", "great", "green", "greet", "grey", "grin", "grip", "groan", "ground", "group", "grow", "guard", "guess", "gun", "guy", "had", "hadn't", "hair", "half", "hall", "hallway", "hand", "handle", "hang", "happen", "happy", "hard", "has", "hate", "have", "haven't", "he", "he'd", "he's", "head", "hear", "heard", "heart", "heavy", "held", "hell", "hello", "help", "her", "here", "herself", "hey", "hi", "hide", "high", "him", "himself", "his", "hit", "hold", "home", "hope", "horse", "hospital", "hot", "hour", "house", "how", "however", "hug", "huge", "huh", "human", "hundred", "hung", "hurry", "hurt", "i", "i'd", "i'll", "i'm", "i've", "ice", "idea", "if", "ignore", "imagine", "immediately", "important", "in", "inside", "instead", "interest", "interrupt", "into", "is", "isn't", "it", "it's", "its", "jacket", "jeans", "jerk", "job", "join", "joke", "jump", "just", "keep", "kept", "key", "kick", "kid", "kill", "kind", "kiss", "kitchen", "knee", "knew", "knock", "know", "known", "lady", "land", "large", "last", "late", "laugh", "lay", "lead", "lean", "learn", "least", "leave", "led", "left", "leg", "less", "let", "letter", "lie", "life", "lift", "light", "like", "line", "lip", "listen", "little", "live", "lock", "locker", "long", "look", "lose", "lost", "lot", "loud", "love", "low", "lunch", "mad", "made", "make", "man", "manage", "many", "mark", "marry", "match", "matter", "may", "maybe", "me", "mean", "meant", "meet", "memory", "men", "mention", "met", "middle", "might", "mind", "mine", "minute", "mirror", "miss", "mom", "moment", "money", "month", "mood", "more", "morning", "most", "mother", "mouth", "move", "movie", "mr.", "mrs.", "much", "mum", "mumble", "music", "must", "mutter", "my", "myself", "name", "near", "nearly", "neck", "need", "nervous", "never", "new", "next", "nice", "night", "no", "nod", "noise", "none", "normal", "nose", "not", "note", "nothing", "notice", "now", "number", "obviously", "of", "off", "offer", "office", "often", "oh", "okay", "old", "on", "once", "one", "only", "onto", "open", "or", "order", "other", "our", "out", "outside", "over", "own", "pack", "pain", "paint", "pair", "pants", "paper", "parents", "park", "part", "party", "pass", "past", "pause", "pay", "people", "perfect", "perhaps", "person", "phone", "pick", "picture", "piece", "pink", "piss", "place", "plan", "play", "please", "pocket", "point", "police", "pop", "position", "possible", "power", "practically", "present", "press", "pretend", "pretty", "probably", "problem", "promise", "pull", "punch", "push", "put", "question", "quick", "quickly", "quiet", "quietly", "quite", "race", "rain", "raise", "ran", "rang", "rather", "reach", "read", "ready", "real", "realize", "really", "reason", "recognize", "red", "relationship", "relax", "remain", "remember", "remind", "repeat", "reply", "respond", "rest", "return", "ride", "right", "ring", "road", "rock", "roll", "room", "rose", "round", "rub", "run", "rush", "sad", "safe", "said", "same", "sat", "save", "saw", "say", "scare", "school", "scream", "search", "seat", "second", "see", "seem", "seen", "self", "send", "sense", "sent", "serious", "seriously", "set", "settle", "seven", "several", "shadow", "shake", "share", "she", "she'd", "she's", "shift", "shirt", "shit", "shock", "shoe", "shook", "shop", "short", "shot", "should", "shoulder", "shouldn't", "shout", "shove", "show", "shower", "shrug", "shut", "sick", "side", "sigh", "sight", "sign", "silence", "silent", "simply", "since", "single", "sir", "sister", "sit", "situation", "six", "skin", "sky", "slam", "sleep", "slightly", "slip", "slow", "slowly", "small", "smell", "smile", "smirk", "smoke", "snap", "so", "soft", "softly", "some", "somehow", "someone", "something", "sometimes", "somewhere", "son", "song", "soon", "sorry", "sort", "sound", "space", "speak", "spend", "spent", "spoke", "spot", "stair", "stand", "star", "stare", "start", "state", "stay", "step", "stick", "still", "stomach", "stood", "stop", "store", "story", "straight", "strange", "street", "strong", "struggle", "stuck", "student", "study", "stuff", "stupid", "such", "suck", "sudden", "suddenly", "suggest", "summer", "sun", "suppose", "sure", "surprise", "surround", "sweet", "table", "take", "taken", "talk", "tall", "teacher", "team", "tear", "teeth", "tell", "ten", "than", "thank", "that", "that's", "the", "their", "them", "themselves", "then", "there", "there's", "these", "they", "they'd", "they're", "thick", "thing", "think", "third", "this", "those", "though", "thought", "three", "threw", "throat", "through", "throw", "tie", "tight", "time", "tiny", "tire", "to", "today", "together", "told", "tomorrow", "tone", "tongue", "tonight", "too", "took", "top", "totally", "touch", "toward", "town", "track", "trail", "train", "tree", "trip", "trouble", "true", "trust", "truth", "try", "turn", "tv", "twenty", "two", "type", "uncle", "under", "understand", "until", "up", "upon", "us", "use", "usual", "usually", "very", "visit", "voice", "wait", "wake", "walk", "wall", "want", "warm", "warn", "was", "wasn't", "watch", "water", "wave", "way", "we", "we'll", "we're", "we've", "wear", "week", "weird", "well", "went", "were", "weren't", "wet", "what", "what's", "whatever", "when", "where", "whether", "which", "while", "whisper", "white", "who", "whole", "why", "wide", "wife", "will", "wind", "window", "wipe", "wish", "with", "within", "without", "woke", "woman", "women", "won't", "wonder", "wood", "word", "wore", "work", "world", "worry", "worse", "would", "wouldn't", "wow", "wrap", "write", "wrong", "yeah", "year", "yell", "yes", "yet", "you", "you'd", "you'll", "you're", "you've", "young", "your", "yourself"]);
+const NUM = ["zero","one","two","three","four","five","six","seven","eight","nine","ten"];
+const $ = id => document.getElementById(id);
+
+function norm(t){ return t.toLowerCase().replace(/[’‘`]/g,"'").replace(/^[^a-z0-9']+|[^a-z0-9']+$/g,""); }
+
+function baseForms(w){
+  const out = [];
+  const suf = [["'s",""],["s",""],["es",""],["ies","y"],["ed",""],["d",""],["ied","y"],["ing",""],["ing","e"],["ly",""],["er",""],["er","e"],["est",""],["est","e"],["ier","y"],["iest","y"]];
+  for (const [s,r] of suf) if (w.length > s.length+1 && w.endsWith(s)) {
+    const b = w.slice(0,-s.length)+r; out.push(b);
+    if (b.length>2 && b[b.length-1]===b[b.length-2]) out.push(b.slice(0,-1));
+  }
+  return out;
+}
+function check(raw){
+  const w = norm(raw);
+  if (!w) return null;
+  if (/^\d+$/.test(w)) { const n=+w; return (n<=10 && ALLOWED.has(NUM[n])) ? "ok" : "bad"; }
+  if (ALLOWED.has(w)) return "ok";
+  if ($("lenient").checked && baseForms(w).some(b => ALLOWED.has(b))) return "form";
+  return "bad";
+}
+function tokens(text){ return text.split(/[\s—]+|-(?=\S)/).filter(t => norm(t)); }
+
+// ---- sound: one soft, low, rounded note (like a muted wooden knock) ----
+let ac;
+function ctx(){ ac = ac || new (window.AudioContext||window.webkitAudioContext)(); if (ac.state==="suspended") ac.resume(); return ac; }
+function tone(a, t0, type, f0, f1, dur, peak, lp){
+  const o=a.createOscillator(), g=a.createGain(), f=a.createBiquadFilter();
+  o.type=type; o.frequency.setValueAtTime(f0,t0); if (f1!==f0) o.frequency.exponentialRampToValueAtTime(f1,t0+dur*0.8);
+  f.type="lowpass"; f.frequency.value=lp||2500;
+  g.gain.setValueAtTime(0.0001,t0); g.gain.exponentialRampToValueAtTime(Math.max(peak,0.0002),t0+0.015); g.gain.exponentialRampToValueAtTime(0.0001,t0+dur);
+  o.connect(f); f.connect(g); g.connect(a.destination); o.start(t0); o.stop(t0+dur+0.02);
+}
+function beep(){
+  const kind = S.tone, v = S.vol/100; if (kind==="off" || v===0) return;
+  try {
+    const a=ctx(), t=a.currentTime;
+    if (kind==="knock") { tone(a,t,"sine",392,294,0.4,0.35*v,1400); tone(a,t,"triangle",196,147,0.4,0.25*v,1400); }
+    else if (kind==="chime") { tone(a,t,"sine",880,880,0.7,0.22*v); tone(a,t+0.11,"sine",660,660,0.8,0.22*v); }
+    else if (kind==="pop") { tone(a,t,"sine",700,180,0.16,0.5*v,3000); }
+    else if (kind==="buzz") { tone(a,t,"sawtooth",110,100,0.35,0.16*v,600); }
+  } catch(e){}
+}
+
+// ---- settings ----
+const DEF = { theme:"light", hl:"marker", flash:"on", tone:"knock", vol:70 };
+let S = Object.assign({}, DEF);
+try { Object.assign(S, JSON.parse(localStorage.getItem("upgoerSettings")||"{}")); } catch(e){}
+const mq = window.matchMedia("(prefers-color-scheme: dark)");
+function applySettings(){
+  const dark = S.theme==="dark" || (S.theme==="auto" && mq.matches);
+  document.documentElement.dataset.theme = dark ? "dark" : "light";
+  document.body.dataset.hl = S.hl;
+  document.querySelectorAll(".seg").forEach(seg=>seg.querySelectorAll("button").forEach(b=>b.classList.toggle("sel", b.dataset.v===S[seg.dataset.key])));
+  $("tone").value = S.tone; $("vol").value = S.vol;
+  try { localStorage.setItem("upgoerSettings", JSON.stringify(S)); } catch(e){}
+}
+document.querySelectorAll(".seg button").forEach(b=>b.onclick=()=>{ S[b.parentElement.dataset.key]=b.dataset.v; applySettings(); });
+$("tone").onchange = () => { S.tone=$("tone").value; applySettings(); beep(); };
+$("vol").oninput = () => { S.vol=+$("vol").value; applySettings(); };
+$("vol").onchange = beep;
+$("testTone").onclick = beep;
+$("setBtn").onclick = (e) => { e.stopPropagation(); $("panel").classList.toggle("open"); };
+document.addEventListener("click", e => { if (!$("panel").contains(e.target)) $("panel").classList.remove("open"); });
+if (mq.addEventListener) mq.addEventListener("change", applySettings);
+
+// ---- state ----
+let finals = [], interim = "", beeped = {}, statusTimer;
+
+function say(text, cls, note){
+  const s = $("status"); s.className = cls||""; s.textContent = text;
+  if (note) { const n=document.createElement("span"); n.className="note"; n.textContent=note; s.append(n); }
+}
+function flagBad(word){
+  const k = norm(word);
+  say(k, "flag", "isn’t on the list");
+  if (S.flash==="on") { document.body.classList.remove("hit"); void document.body.offsetWidth; document.body.classList.add("hit"); }
+  beep();
+  clearTimeout(statusTimer);
+  statusTimer = setTimeout(()=>{ if (listening) say("Listening…","live"); }, 2600);
+}
+
+function render(){
+  const tr = $("transcript"); tr.innerHTML = "";
+  let nW=0, nB=0;
+  const add = (text, isInterim) => {
+    for (const t of tokens(text)) {
+      const c = check(t); if (!c) continue;
+      const sp = document.createElement("span");
+      sp.className = (c==="bad"?"bad":c==="form"?"form":"") + (isInterim?" interim":"");
+      sp.textContent = t; tr.append(sp, " ");
+      nW++; if (c==="bad") nB++;
+    }
+  };
+  finals.forEach(f=>add(f,false)); add(interim,true);
+  tr.scrollTop = tr.scrollHeight;
+  $("counts").textContent = nW ? `${nW} words, ${nB} to fix` : "";
+  const uniq = new Map();
+  finals.forEach(f=>tokens(f).forEach(t=>{ if(check(t)==="bad"){ const k=norm(t); uniq.set(k,(uniq.get(k)||0)+1);} }));
+  const fx = $("fixes"); fx.innerHTML = "";
+  if (uniq.size) {
+    fx.append("To fix: ");
+    let first = true;
+    uniq.forEach((n,k)=>{ if(!first) fx.append(", "); first=false; const b=document.createElement("b"); b.textContent = k + (n>1?" (×"+n+")":""); fx.append(b); });
+  }
+}
+function scanForBeeps(i, text){
+  const counts = {};
+  tokens(text).forEach(t=>{ if (check(t)==="bad"){ const k=norm(t); counts[k]=(counts[k]||0)+1; } });
+  const seen = beeped[i] = beeped[i] || {};
+  for (const k in counts) {
+    const extra = counts[k] - (seen[k]||0);
+    for (let n=0;n<extra;n++) flagBad(k);
+    if (extra>0) seen[k] = counts[k];
+  }
+}
+
+// ---- speech ----
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec, listening=false, netFails=0, useLocal=false;
+
+async function prepareLocal(){
+  // Chrome 139+ can recognise speech on this computer, with no internet. Try that first.
+  try {
+    if (SR && SR.available && SR.install) {
+      const opts = { langs:["en-US"], processLocally:true };
+      let st = await SR.available(opts);
+      if (st === "downloadable" || st === "downloading") {
+        $("msg").textContent = "Downloading the offline speech pack (one time)…";
+        await SR.install(opts);
+        st = await SR.available(opts);
+      }
+      useLocal = (st === "available");
+    }
+  } catch(e){ useLocal = false; }
+}
+
+function startRec(){
+  rec = new SR();
+  rec.continuous = true; rec.interimResults = true; rec.lang = "en-US"; rec.maxAlternatives = 1;
+  if (useLocal) { try { rec.processLocally = true; } catch(e){} }
+  rec.onstart = () => { beeped = {}; $("msg").textContent = useLocal ? "" : $("msg").textContent; };
+  rec.onresult = (e) => {
+    netFails = 0; $("msg").textContent = "";
+    let live = "";
+    for (let i=e.resultIndex; i<e.results.length; i++) {
+      const r = e.results[i], text = r[0].transcript;
+      scanForBeeps(i, text);
+      if (r.isFinal) finals.push(text.trim()); else live += text + " ";
+    }
+    interim = live; render();
+  };
+  rec.onerror = (e) => {
+    if (e.error === "not-allowed" || e.error === "service-not-allowed") {
+      $("msg").textContent = "The microphone is blocked. Allow it from the icon left of the address bar, then press Start again.";
+      stopListening();
+    } else if (e.error === "network") {
+      netFails++;
+      if (useLocal) { useLocal = false; }
+      $("msg").textContent = netFails < 4
+        ? "Can’t reach the speech service. Retrying…"
+        : "Still can’t reach the speech service. Check the internet or VPN, or try Microsoft Edge.";
+    } else if (e.error !== "no-speech" && e.error !== "aborted") {
+      $("msg").textContent = "Speech error: " + e.error;
+    }
+  };
+  rec.onend = () => { if (listening) setTimeout(()=>{ if (listening) { try { startRec(); } catch(e){} } }, netFails ? Math.min(500*netFails, 3000) : 100); };
+  try { rec.start(); } catch(e){}
+}
+
+function stopListening(){
+  listening = false; try { rec && rec.stop(); } catch(e){}
+  $("go").textContent = "Start listening"; $("go").classList.remove("on");
+  say("Stopped.","");
+}
+$("go").onclick = async () => {
+  if (listening) { stopListening(); return; }
+  if (!SR) { $("msg").textContent = "This browser can’t do speech recognition. Open the page in Chrome or Edge. The typing box below still works."; return; }
+  if (location.protocol === "file:") $("msg").textContent = "Tip: open this through start.bat so the browser remembers the microphone permission.";
+  ctx();
+  listening = true; netFails = 0;
+  $("go").textContent = "Stop"; $("go").classList.add("on");
+  say("Listening…","live");
+  await prepareLocal();
+  if (listening) startRec();
+};
+$("clearBtn").onclick = () => { finals=[]; interim=""; beeped={}; render(); };
+$("lenient").onchange = render;
+
+function checkTyped(){
+  const v = $("typedIn").value.trim(); if (!v) return;
+  ctx(); scanForBeeps("t"+Date.now(), v); finals.push(v); $("typedIn").value=""; render();
+}
+$("typedBtn").onclick = checkTyped;
+$("typedIn").addEventListener("keydown", e=>{ if(e.key==="Enter") checkTyped(); });
+applySettings();
+render();
+</script>
+</body>
+</html>
